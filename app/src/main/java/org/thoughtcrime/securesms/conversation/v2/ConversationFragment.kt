@@ -222,6 +222,7 @@ import org.thoughtcrime.securesms.conversation.v2.items.InteractiveConversationE
 import org.thoughtcrime.securesms.conversation.v2.keyboard.AttachmentKeyboardFragment
 import org.thoughtcrime.securesms.database.AttachmentTable
 import org.thoughtcrime.securesms.database.DraftTable
+import org.thoughtcrime.securesms.database.adjustBodyRanges
 import org.thoughtcrime.securesms.database.model.IdentityRecord
 import org.thoughtcrime.securesms.database.model.InMemoryMessageRecord
 import org.thoughtcrime.securesms.database.model.Mention
@@ -329,6 +330,7 @@ import org.thoughtcrime.securesms.util.Dialogs
 import org.thoughtcrime.securesms.util.DoubleClickDebouncer
 import org.thoughtcrime.securesms.util.DrawableUtil
 import org.thoughtcrime.securesms.util.FullscreenHelper
+import org.thoughtcrime.securesms.util.MarkdownUtil
 import org.thoughtcrime.securesms.util.MediaUtil
 import org.thoughtcrime.securesms.util.MessageConstraintsUtil
 import org.thoughtcrime.securesms.util.MessageConstraintsUtil.getEditMessageThresholdHours
@@ -2097,18 +2099,28 @@ class ConversationFragment :
       return
     }
 
+    var processedBody = body
+    var processedBodyRanges = bodyRanges
+    if (SignalStore.settings.isMarkdownEnabled) {
+      val mdResult = try { MarkdownUtil.process(body, bodyRanges) }
+        catch (_: Exception) { null }
+
+      processedBody = mdResult?.first ?: body
+      processedBodyRanges = mdResult?.second ?: bodyRanges
+    }
+
     val metricId = viewModel.recipientSnapshot?.let { if (it.isGroup) SignalLocalMetrics.GroupMessageSend.start() else SignalLocalMetrics.IndividualMessageSend.start() }
 
     val send: Completable = viewModel.sendMessage(
       metricId = metricId,
       threadRecipient = threadRecipient,
-      body = body,
+      body = processedBody,
       slideDeck = slideDeck,
       scheduledDate = scheduledDate,
       messageToEdit = messageToEdit,
       quote = quote,
       mentions = mentions,
-      bodyRanges = bodyRanges,
+      bodyRanges = processedBodyRanges,
       contacts = contacts,
       linkPreviews = linkPreviews,
       preUploadResults = preUploadResults,
